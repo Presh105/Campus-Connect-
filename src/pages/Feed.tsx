@@ -48,6 +48,7 @@ interface Post {
     display_number: number;
     is_anonymous: boolean;
     system_id: string | null;
+    points: number;
   };
 }
 
@@ -103,7 +104,7 @@ export default function Feed() {
     const userIds = [...new Set(postsData.map(p => p.user_id))];
     const { data: profilesData } = await supabase
       .from('profiles')
-      .select('user_id, full_name, department, avatar_url, display_number, is_anonymous, system_id')
+      .select('user_id, full_name, department, avatar_url, display_number, is_anonymous, system_id, points')
       .in('user_id', userIds);
 
     const profilesMap = new Map(profilesData?.map(p => [p.user_id, p]) || []);
@@ -942,4 +943,4 @@ function PrivateComments({ postId, userId, isAdmin }: { postId: string; userId?:
       )}
     </div>
   );
-}
+              }
