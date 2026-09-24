@@ -256,7 +256,9 @@ export default function PrivateChat() {
                   return (
                     <div
                       key={msg.id}
-                      className={`flex gap-2 ${isOwn ? 'flex-row-reverse' : ''}`}
+                      className={`flex gap-2 animate-in fade-in duration-300 ${
+                        isOwn ? 'flex-row-reverse slide-in-from-right-4' : 'slide-in-from-left-4'
+                      }`}
                     >
                       <Avatar className="w-8 h-8 shrink-0">
                         {isOwn ? (
@@ -274,7 +276,7 @@ export default function PrivateChat() {
                       </Avatar>
                       <div className={`max-w-[70%] ${isOwn ? 'items-end' : 'items-start'}`}>
                         <div
-                          className={`rounded-2xl px-4 py-2 ${
+                          className={`rounded-2xl px-4 py-2 transition-transform active:scale-[0.98] ${
                             isOwn
                               ? 'bg-primary text-primary-foreground rounded-tr-sm'
                               : 'bg-muted rounded-tl-sm'
@@ -286,7 +288,7 @@ export default function PrivateChat() {
                                 <img 
                                   src={msg.file_url} 
                                   alt="Shared" 
-                                  className="rounded-lg max-w-full"
+                                  className="rounded-lg max-w-full animate-in zoom-in-95 duration-300"
                                 />
                               ) : (
                                 <a 
@@ -369,4 +371,4 @@ export default function PrivateChat() {
       </div>
     </div>
   );
-}
+                        }
