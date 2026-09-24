@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Home, Trash2, Plus, Info, ExternalLink } from 'lucide-react';
+import { Home, Trash2, Plus, Info, ExternalLink, MapPin } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAdmin } from '@/hooks/useAdmin';
 import { useAuth } from '@/contexts/AuthContext';
@@ -193,7 +193,17 @@ export function LodgesTab() {
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="font-bold text-foreground text-lg">{lodge.name}</h3>
-                    <Badge className="mt-1 text-xs">{lodge.location}</Badge>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <Badge className="text-xs">{lodge.location}</Badge>
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(lodge.location)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-primary hover:underline flex items-center gap-1"
+                      >
+                        <MapPin className="w-3 h-3" /> Get Directions
+                      </a>
+                    </div>
                   </div>
                   {isAdmin && (
                     <Button variant="ghost" size="sm" className="text-destructive" onClick={() => handleDelete(lodge.id)}>
@@ -220,4 +230,4 @@ export function LodgesTab() {
       )}
     </div>
   );
-}
+      }
