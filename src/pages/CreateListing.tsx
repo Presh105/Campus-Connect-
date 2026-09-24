@@ -54,6 +54,11 @@ export default function CreateListing() {
       return;
     }
 
+    if (whatsappLink && !/^https:\/\/(wa\.me|api\.whatsapp\.com)\//.test(whatsappLink.trim())) {
+      toast.error('WhatsApp link must start with https://wa.me/ or https://api.whatsapp.com/');
+      return;
+    }
+
     setLoading(true);
 
     // Point 18: ALL listings need admin approval
