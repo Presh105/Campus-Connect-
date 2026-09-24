@@ -170,7 +170,7 @@ export default function Events() {
             </TabsTrigger>
             <TabsTrigger value="resources" className="flex-1">
               <FileText className="w-4 h-4 mr-2" />
-              Study Materials
+              Resources
             </TabsTrigger>
           </TabsList>
 
@@ -314,4 +314,4 @@ export default function Events() {
       />
     </AppLayout>
   );
-}
+      }
