@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings, LogOut, Edit2, Award, MessageSquare, Package, TrendingUp, Gamepad2, Eye, EyeOff, Save, Shield, Calendar, Crown, MessageCircle, MessageCircleOff, ArrowLeft } from 'lucide-react';
+import { Settings, LogOut, Edit2, Award, MessageSquare, Package, TrendingUp, Gamepad2, Eye, EyeOff, Save, Shield, Calendar, Crown, MessageCircle, MessageCircleOff, ArrowLeft, Users } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
@@ -252,9 +252,17 @@ export default function Profile() {
             )}
 
             {isOwnProfile && (
+              <div className="flex items-center justify-center gap-2 mt-4">
+                <Button variant="outline" size="sm" className="rounded-full" onClick={() => navigate('/invite')}>
+                  <Users className="w-4 h-4 mr-2" />Invite Friends
+                </Button>
+              </div>
+            )}
+
+            {isOwnProfile && (
               <Dialog open={isEditing} onOpenChange={setIsEditing}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="mt-4 rounded-full">
+                  <Button variant="outline" size="sm" className="mt-2 rounded-full">
                     <Edit2 className="w-4 h-4 mr-2" />Edit Profile
                   </Button>
                 </DialogTrigger>
@@ -403,4 +411,4 @@ export default function Profile() {
       </div>
     </AppLayout>
   );
-  }
+}
