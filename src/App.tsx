@@ -17,8 +17,6 @@ import ListingDetail from "./pages/ListingDetail";
 import StudentList from "./pages/StudentList";
 import Predictions from "./pages/Predictions";
 import CreatePrediction from "./pages/CreatePrediction";
-import Events from "./pages/Events";
-import CreateEvent from "./pages/CreateEvent";
 import Game from "./pages/Game";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
@@ -97,8 +95,6 @@ function AppRoutes() {
       <Route path="/students" element={<ProtectedRoute><StudentList /></ProtectedRoute>} />
       <Route path="/predictions" element={<ProtectedRoute><Predictions /></ProtectedRoute>} />
       <Route path="/predictions/create" element={<ProtectedRoute><CreatePrediction /></ProtectedRoute>} />
-      <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
-      <Route path="/events/create" element={<ProtectedRoute><CreateEvent /></ProtectedRoute>} />
       <Route path="/game" element={<ProtectedRoute><Game /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       <Route path="/profile/:userId" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
@@ -159,4 +155,3 @@ function App() {
 }
 
 export default App;
-  
