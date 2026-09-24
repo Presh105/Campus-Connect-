@@ -101,7 +101,7 @@ export default function Announcements() {
       <div className="min-h-screen bg-background pb-20">
         <PageHeader 
           title="Announcements" 
-          subtitle="School memos and notices"
+          subtitle="Announcements and notices"
           action={
             isOfficial && (
               <Button 
@@ -235,4 +235,4 @@ export default function Announcements() {
       </div>
     </AppLayout>
   );
-}
+    }
