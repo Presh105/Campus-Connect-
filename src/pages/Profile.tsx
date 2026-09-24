@@ -1,238 +1,406 @@
 import { useState, useEffect } from 'react';
-import { Megaphone, Pin, Plus, Image, Loader2 } from 'lucide-react';
+import { Settings, LogOut, Edit2, Award, MessageSquare, Package, TrendingUp, Gamepad2, Eye, EyeOff, Save, Shield, Calendar, Crown, MessageCircle, MessageCircleOff, ArrowLeft } from 'lucide-react';
+import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { supabase } from '@/integrations/supabase/client';
-import { formatDistanceToNow } from 'date-fns';
-import { AppLayout } from '@/components/layout/AppLayout';
-import { RulesBanner } from '@/components/rules/RulesBanner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAdmin } from '@/hooks/useAdmin';
+import { useNavigate, useParams } from 'react-router-dom';
+import { DEPARTMENTS, USER_ROLES } from '@/lib/constants';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ImageUpload } from '@/components/ImageUpload';
+import { format } from 'date-fns';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
-interface Announcement {
-  id: string;
-  title: string;
-  content: string | null;
-  image_url: string | null;
-  is_pinned: boolean;
-  created_at: string;
+interface Stats {
+  posts: number;
+  listings: number;
+  predictions: number;
+  gameHighScore: number;
 }
 
-export default function Announcements() {
-  const { user, profile } = useAuth();
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({
-    title: '',
-    content: '',
-    image_url: ''
-  });
+interface ExtendedProfile {
+  id: string;
+  user_id: string;
+  full_name: string;
+  department: string;
+  level: string;
+  avatar_url: string | null;
+  bio: string | null;
+  points: number;
+  is_anonymous: boolean;
+  created_at: string;
+  updated_at: string;
+  user_role: string | null;
+  display_number: number;
+  reg_number: string | null;
+  faculty: string | null;
+  gender: string | null;
+  system_id: string | null;
+  chat_enabled: boolean;
+  has_corrected_details?: boolean;
+}
 
-  // Check if user is official (has official badge)
-  const [isOfficial, setIsOfficial] = useState(false);
+export default function Profile() {
+  const { user, profile, signOut, loading, refreshProfile } = useAuth();
+  const { isAdmin, isSuperAdmin } = useAdmin();
+  const navigate = useNavigate();
+  const { userId } = useParams<{ userId: string }>();
+  const isOwnProfile = !userId || userId === user?.id;
+
+  const [stats, setStats] = useState<Stats>({ posts: 0, listings: 0, predictions: 0, gameHighScore: 0 });
+  const [extendedProfile, setExtendedProfile] = useState<ExtendedProfile | null>(null);
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [chatEnabled, setChatEnabled] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ full_name: '', bio: '', avatar_url: '' });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetchAnnouncements();
-    checkOfficialStatus();
-  }, [user]);
+    if (!loading && !user) { navigate('/auth'); }
+  }, [user, loading, navigate]);
 
-  const checkOfficialStatus = async () => {
+  useEffect(() => {
+    if (user) { fetchExtendedProfile(); }
+    if (isOwnProfile) fetchStats(user?.id);
+    else fetchStats(userId);
+  }, [user, userId]);
+
+  useEffect(() => {
+    if (isOwnProfile && profile) {
+      setIsAnonymous(profile.is_anonymous ?? false);
+      setEditForm({ full_name: profile.full_name, bio: profile.bio || '', avatar_url: profile.avatar_url || '' });
+    }
+  }, [profile, isOwnProfile]);
+
+  const fetchExtendedProfile = async () => {
+    const targetId = isOwnProfile ? user?.id : userId;
+    if (!targetId) return;
+    const { data } = await supabase.from('profiles').select('*').eq('user_id', targetId).single();
+    if (data) {
+      setExtendedProfile(data as ExtendedProfile);
+      setChatEnabled((data as ExtendedProfile).chat_enabled ?? true);
+    }
+  };
+
+  const fetchStats = async (targetId?: string) => {
+    if (!targetId) return;
+    const [postsRes, listingsRes, predictionsRes, gameRes] = await Promise.all([
+      supabase.from('posts').select('id', { count: 'exact' }).eq('user_id', targetId),
+      supabase.from('listings').select('id', { count: 'exact' }).eq('seller_id', targetId),
+      supabase.from('predictions').select('id', { count: 'exact' }).eq('user_id', targetId),
+      supabase.from('game_scores').select('score').eq('user_id', targetId).order('score', { ascending: false }).limit(1),
+    ]);
+    setStats({
+      posts: postsRes.count || 0,
+      listings: listingsRes.count || 0,
+      predictions: predictionsRes.count || 0,
+      gameHighScore: gameRes.data?.[0]?.score || 0,
+    });
+  };
+
+  const toggleAnonymous = async (value: boolean) => {
     if (!user) return;
-    
-    const { data } = await supabase
-      .from('profiles')
-      .select('is_official')
-      .eq('user_id', user.id)
-      .single();
-    
-    setIsOfficial(data?.is_official || false);
+    const { error } = await supabase.from('profiles').update({ is_anonymous: value }).eq('user_id', user.id);
+    if (error) { toast.error('Failed to update privacy setting'); }
+    else { setIsAnonymous(value); toast.success(value ? 'Profile is now anonymous' : 'Profile is now public'); refreshProfile(); }
   };
 
-  const fetchAnnouncements = async () => {
-    const { data } = await supabase
-      .from('school_announcements')
-      .select('*')
-      .order('is_pinned', { ascending: false })
-      .order('created_at', { ascending: false });
-    
-    setAnnouncements(data || []);
-    setLoading(false);
+  const toggleChatEnabled = async (value: boolean) => {
+    if (!user) return;
+    const { error } = await supabase.from('profiles').update({ chat_enabled: value }).eq('user_id', user.id);
+    if (error) { toast.error('Failed to update chat setting'); }
+    else { setChatEnabled(value); toast.success(value ? 'Others can now message you' : 'Others can no longer start a chat with you'); }
   };
 
-  const handleCreate = async () => {
-    if (!user || !form.title.trim()) {
-      toast.error('Please enter a title');
-      return;
-    }
-
-    setCreating(true);
-    const { error } = await supabase
-      .from('school_announcements')
-      .insert({
-        title: form.title.trim(),
-        content: form.content.trim() || null,
-        image_url: form.image_url || null,
-        created_by: user.id,
-        is_pinned: false
-      });
-
-    if (error) {
-      toast.error('Failed to create announcement');
-    } else {
-      toast.success('Announcement posted!');
-      setForm({ title: '', content: '', image_url: '' });
-      setShowCreateDialog(false);
-      fetchAnnouncements();
-    }
-    setCreating(false);
+  const saveProfile = async () => {
+    if (!user) return;
+    setSaving(true);
+    const { error } = await supabase.from('profiles').update({
+      full_name: editForm.full_name, bio: editForm.bio, avatar_url: editForm.avatar_url || null,
+    }).eq('user_id', user.id);
+    if (error) { toast.error('Failed to update profile'); }
+    else { toast.success('Profile updated!'); setIsEditing(false); refreshProfile(); fetchExtendedProfile(); }
+    setSaving(false);
   };
+
+  const startChat = () => {
+    if (!extendedProfile) return;
+    if (!chatEnabled) { toast.message('This member has turned off chats.'); return; }
+    navigate(`/chat/private/${extendedProfile.user_id}`);
+  };
+
+  const handleAvatarUpload = (url: string) => { setEditForm(prev => ({ ...prev, avatar_url: url })); };
+  const getDepartmentLabel = (value: string) => DEPARTMENTS.find(d => d.value === value)?.label || value;
+  const getRoleLabel = (value: string | null) => { if (!value) return null; return USER_ROLES.find(r => r.value === value)?.label || value; };
+  const handleSignOut = async () => { await signOut(); navigate('/auth'); };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!extendedProfile || (isOwnProfile && !profile)) return null;
+
+  const roleLabel = getRoleLabel(extendedProfile.user_role);
+  const displayName = extendedProfile.is_anonymous && !isOwnProfile
+    ? 'Anonymous Member'
+    : `${extendedProfile.full_name}${extendedProfile.display_number > 1 ? `#${extendedProfile.display_number}` : ''}`;
 
   return (
     <AppLayout>
-      <div className="min-h-screen bg-background pb-20">
-        <PageHeader 
-          title="Announcements" 
-          subtitle="Announcements and notices"
-          action={
-            isOfficial && (
-              <Button 
-                size="sm" 
-                className="rounded-full bg-gradient-primary shadow-primary"
-                onClick={() => setShowCreateDialog(true)}
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                Post
+      <PageHeader
+        title={isOwnProfile ? 'Profile' : displayName}
+        showBack={!isOwnProfile}
+        action={
+          isOwnProfile ? (
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <Button variant="ghost" size="icon" className="rounded-full" onClick={() => navigate('/students')}>
+                <Settings className="w-5 h-5" />
               </Button>
-            )
-          }
-        />
-
-        <RulesBanner location="announcements" />
-
-        <div className="px-4 py-4 space-y-4">
-          {loading ? (
-            <div className="space-y-3">
-              {[1, 2].map((i) => (
-                <Card key={i} className="animate-pulse">
-                  <div className="w-full h-40 bg-muted" />
-                  <div className="p-4 space-y-2">
-                    <div className="w-3/4 h-5 bg-muted rounded" />
-                    <div className="w-1/2 h-4 bg-muted rounded" />
-                  </div>
-                </Card>
-              ))}
             </div>
-          ) : announcements.length === 0 ? (
-            <Card className="p-8 text-center">
-              <Megaphone className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="font-semibold text-lg mb-2">No announcements</h3>
-              <p className="text-muted-foreground">Check back later for school updates</p>
-            </Card>
           ) : (
-            announcements.map((announcement) => (
-              <Card key={announcement.id} className="shadow-soft overflow-hidden">
-                {announcement.image_url && (
-                  <img 
-                    src={announcement.image_url} 
-                    alt={announcement.title}
-                    className="w-full h-48 object-cover"
-                  />
-                )}
-                <div className="p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    {announcement.is_pinned && (
-                      <Badge variant="secondary" className="text-xs">
-                        <Pin className="w-3 h-3 mr-1" />
-                        Pinned
-                      </Badge>
-                    )}
-                  </div>
-                  <h3 className="font-semibold text-lg">{announcement.title}</h3>
-                  {announcement.content && (
-                    <p className="text-muted-foreground mt-2">{announcement.content}</p>
-                  )}
-                  <p className="text-xs text-muted-foreground mt-3">
-                    {formatDistanceToNow(new Date(announcement.created_at), { addSuffix: true })}
-                  </p>
-                </div>
-              </Card>
-            ))
-          )}
-        </div>
+            <Button
+              size="icon"
+              variant={chatEnabled ? 'default' : 'ghost'}
+              className="rounded-full"
+              onClick={startChat}
+              disabled={!chatEnabled}
+              title={chatEnabled ? 'Start chat' : 'This member has chats turned off'}
+            >
+              {chatEnabled ? <MessageCircle className="w-5 h-5" /> : <MessageCircleOff className="w-5 h-5" />}
+            </Button>
+          )
+        }
+      />
 
-        {/* Create Announcement Dialog */}
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Post Announcement</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Title *</Label>
-                <Input
-                  id="title"
-                  placeholder="Announcement title..."
-                  value={form.title}
-                  onChange={(e) => setForm(prev => ({ ...prev, title: e.target.value }))}
-                  maxLength={200}
-                />
+      <div className="px-4 py-4 space-y-4">
+        <Card className={`p-6 shadow-soft text-center relative overflow-hidden ${isSuperAdmin && isOwnProfile ? 'ring-2 ring-warning' : ''}`}>
+          <div className={`absolute inset-0 ${isSuperAdmin && isOwnProfile ? 'bg-gradient-to-br from-warning/20 to-primary/10' : 'bg-gradient-hero opacity-5'}`} />
+          <div className="relative">
+            {isSuperAdmin && isOwnProfile && (
+              <div className="absolute -top-2 -right-2">
+                <Badge className="bg-warning text-warning-foreground"><Crown className="w-3 h-3 mr-1" />Owner</Badge>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="content">Content (optional)</Label>
-                <Textarea
-                  id="content"
-                  placeholder="Add more details..."
-                  value={form.content}
-                  onChange={(e) => setForm(prev => ({ ...prev, content: e.target.value }))}
-                  maxLength={5000}
-                />
+            )}
+
+            <Avatar className={`w-24 h-24 mx-auto ring-4 ${isSuperAdmin && isOwnProfile ? 'ring-warning' : 'ring-background'} shadow-elevated`}>
+              {!(extendedProfile.is_anonymous && !isOwnProfile) && <AvatarImage src={extendedProfile.avatar_url || undefined} />}
+              <AvatarFallback className={`text-2xl ${isSuperAdmin && isOwnProfile ? 'bg-gradient-to-br from-warning to-primary' : 'bg-gradient-primary'} text-primary-foreground`}>
+                {displayName.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+
+            <h2 className="font-bold text-xl mt-4 text-foreground">{displayName}</h2>
+
+            {roleLabel && extendedProfile.user_role !== 'student' && (
+              <Badge className="mt-2 bg-primary/10 text-primary border-primary/20">{roleLabel}</Badge>
+            )}
+
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <Badge variant="secondary">{getDepartmentLabel(extendedProfile.department)}</Badge>
+            </div>
+
+            {extendedProfile.bio && (
+              <p className="text-muted-foreground mt-3 text-sm">{extendedProfile.bio}</p>
+            )}
+
+            {/* System ID visible to the user themselves and admin */}
+            {isOwnProfile && extendedProfile.system_id && (
+              <div className="mt-3">
+                <button
+                  onClick={() => { navigator.clipboard.writeText(extendedProfile.system_id!); toast.success('System ID copied!'); }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-muted rounded-full text-xs text-foreground hover:bg-muted/80 transition-colors"
+                >
+                  <Shield className="w-3 h-3" />
+                  <span className="font-mono">{extendedProfile.system_id}</span>
+                  <span className="text-[10px] opacity-60">Your ID</span>
+                </button>
               </div>
-              <div className="space-y-2">
-                <Label>Image (optional)</Label>
-                {user && form.image_url ? (
-                  <div className="relative">
-                    <img src={form.image_url} alt="Preview" className="w-full h-32 object-cover rounded-lg" />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="sm"
-                      className="absolute top-2 right-2"
-                      onClick={() => setForm(prev => ({ ...prev, image_url: '' }))}
-                    >
-                      Remove
+            )}
+
+            <div className="flex items-center justify-center gap-1 mt-3 text-xs text-muted-foreground">
+              <Calendar className="w-3 h-3" />
+              <span>Joined {format(new Date(extendedProfile.created_at), 'MMMM yyyy')}</span>
+            </div>
+
+            {isOwnProfile && (
+              <button
+                onClick={() => navigate('/withdraw')}
+                className="inline-flex items-center justify-center gap-1 mt-4 px-4 py-2 rounded-full bg-warning/10 hover:bg-warning/20 transition-colors"
+                title={extendedProfile.points >= 1000 ? 'Click to withdraw' : `Need ₦${1000 - extendedProfile.points} more to withdraw`}
+              >
+                <Award className="w-5 h-5 text-warning" />
+                <span className="font-bold">₦{extendedProfile.points}</span>
+                {extendedProfile.points >= 1000 && <span className="text-[10px] ml-1 px-2 py-0.5 rounded-full bg-warning text-warning-foreground font-semibold">Cash out</span>}
+              </button>
+            )}
+
+            {isOwnProfile && (
+              <Dialog open={isEditing} onOpenChange={setIsEditing}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="mt-4 rounded-full">
+                    <Edit2 className="w-4 h-4 mr-2" />Edit Profile
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>Edit Profile</DialogTitle></DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Profile Picture</Label>
+                      {user && <ImageUpload bucket="avatars" userId={user.id} onUpload={handleAvatarUpload} preview />}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="full_name">Full Name</Label>
+                      <Input id="full_name" value={editForm.full_name} onChange={(e) => setEditForm(prev => ({ ...prev, full_name: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="bio">Bio</Label>
+                      <Textarea id="bio" value={editForm.bio} onChange={(e) => setEditForm(prev => ({ ...prev, bio: e.target.value }))} placeholder="Tell us about yourself..." />
+                    </div>
+                    <Button onClick={saveProfile} disabled={saving} className="w-full">
+                      <Save className="w-4 h-4 mr-2" />{saving ? 'Saving...' : 'Save Changes'}
                     </Button>
                   </div>
-                ) : user && (
-                  <ImageUpload
-                    bucket="posts"
-                    userId={user.id}
-                    onUpload={(url) => setForm(prev => ({ ...prev, image_url: url }))}
-                    preview
-                  />
-                )}
+                </DialogContent>
+              </Dialog>
+            )}
+
+            {!isOwnProfile && (
+              <Button
+                onClick={startChat}
+                disabled={!chatEnabled}
+                className="mt-4 rounded-full"
+                variant={chatEnabled ? 'default' : 'outline'}
+              >
+                {chatEnabled ? <MessageCircle className="w-4 h-4 mr-2" /> : <MessageCircleOff className="w-4 h-4 mr-2" />}
+                {chatEnabled ? 'Message' : 'Chats turned off'}
+              </Button>
+            )}
+          </div>
+        </Card>
+
+        {/* Privacy Settings — own profile only */}
+        {isOwnProfile && (
+          <>
+            <Card className="p-4 shadow-soft">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {isAnonymous ? <EyeOff className="w-5 h-5 text-muted-foreground" /> : <Eye className="w-5 h-5 text-primary" />}
+                  <div>
+                    <p className="font-bold text-foreground">Anonymous Profile</p>
+                    <p className="text-xs text-muted-foreground">
+                      {isAnonymous ? 'Your identity is hidden from other members' : 'Other members can see your profile'}
+                    </p>
+                  </div>
+                </div>
+                <Switch checked={isAnonymous} onCheckedChange={toggleAnonymous} />
+              </div>
+            </Card>
+
+            <Card className="p-4 shadow-soft">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {chatEnabled ? <MessageCircle className="w-5 h-5 text-primary" /> : <MessageCircleOff className="w-5 h-5 text-muted-foreground" />}
+                  <div>
+                    <p className="font-bold text-foreground">Allow Chats</p>
+                    <p className="text-xs text-muted-foreground">
+                      {chatEnabled ? 'Other members can start a chat with you from your profile' : 'Other members cannot start a new chat with you'}
+                    </p>
+                  </div>
+                </div>
+                <Switch checked={chatEnabled} onCheckedChange={toggleChatEnabled} />
+              </div>
+            </Card>
+          </>
+        )}
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 gap-3">
+          <Card className="p-4 shadow-soft">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <MessageSquare className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{stats.posts}</p>
+                <p className="text-xs text-muted-foreground">Posts</p>
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleCreate} disabled={creating || !form.title.trim()}>
-                {creating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Post Announcement
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          </Card>
+          <Card className="p-4 shadow-soft">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
+                <Package className="w-5 h-5 text-success" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{stats.listings}</p>
+                <p className="text-xs text-muted-foreground">Listings</p>
+              </div>
+            </div>
+          </Card>
+          <Card className="p-4 shadow-soft">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-info/10 flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-info" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{stats.predictions}</p>
+                <p className="text-xs text-muted-foreground">Predictions</p>
+              </div>
+            </div>
+          </Card>
+          <Card className="p-4 shadow-soft">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center">
+                <Gamepad2 className="w-5 h-5 text-warning" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{stats.gameHighScore}</p>
+                <p className="text-xs text-muted-foreground">Game Best</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Admin Dashboard Link — own profile only */}
+        {isOwnProfile && isAdmin && (
+          <Card
+            className={`p-4 shadow-soft cursor-pointer hover:shadow-elevated transition-shadow ${isSuperAdmin ? 'bg-gradient-to-r from-warning/20 to-primary/20' : 'bg-gradient-primary'} text-foreground`}
+            onClick={() => navigate('/admin')}
+          >
+            <div className="flex items-center gap-3">
+              <Shield className="w-6 h-6" />
+              <div>
+                <p className="font-bold">Admin Dashboard</p>
+                <p className="text-sm opacity-90">Manage users, content & more</p>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Sign Out — own profile only */}
+        {isOwnProfile && (
+          <Button variant="outline" className="w-full rounded-xl" onClick={handleSignOut}>
+            <LogOut className="w-4 h-4 mr-2" />Sign Out
+          </Button>
+        )}
       </div>
     </AppLayout>
   );
-    }
+  }
