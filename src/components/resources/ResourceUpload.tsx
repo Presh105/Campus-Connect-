@@ -76,7 +76,7 @@ export function ResourceUpload({ onSuccess, onCancel, defaultDepartment, default
 
   return (
     <Card className="p-4 shadow-soft">
-      <h3 className="font-semibold text-lg mb-4">Upload Study Material</h3>
+      <h3 className="font-semibold text-lg mb-4">Upload Resource</h3>
       <div className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="title">Title *</Label>
@@ -161,4 +161,4 @@ export function ResourceUpload({ onSuccess, onCancel, defaultDepartment, default
       </div>
     </Card>
   );
-}
+        }
