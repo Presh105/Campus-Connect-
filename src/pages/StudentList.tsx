@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, MessageCircle, User } from 'lucide-react';
+import { Search, MessageCircle, MessageCircleOff, User } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,12 +8,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface Member {
   user_id: string;
   full_name: string;
   avatar_url: string | null;
   is_anonymous: boolean;
+  chat_enabled: boolean;
 }
 
 export default function StudentList() {
@@ -30,11 +32,11 @@ export default function StudentList() {
   const fetchMembers = async () => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('user_id, full_name, avatar_url, is_anonymous')
+      .select('user_id, full_name, avatar_url, is_anonymous, chat_enabled')
       .neq('user_id', user?.id || '');
 
     if (!error && data) {
-      setMembers(data);
+      setMembers(data as Member[]);
     }
     setLoading(false);
   };
@@ -45,8 +47,10 @@ export default function StudentList() {
     return searchableName.includes(query);
   });
 
-  const startChat = (memberId: string) => {
-    navigate(`/chat/private/${memberId}`);
+  const startChat = (e: React.MouseEvent, member: Member) => {
+    e.stopPropagation();
+    if (!member.chat_enabled) { toast.message('This member has turned off chats.'); return; }
+    navigate(`/chat/private/${member.user_id}`);
   };
 
   return (
@@ -93,7 +97,11 @@ export default function StudentList() {
         ) : (
           <div className="space-y-3">
             {filteredMembers.map((member) => (
-              <Card key={member.user_id} className="p-4 shadow-soft">
+              <Card
+                key={member.user_id}
+                className="p-4 shadow-soft cursor-pointer hover:shadow-elevated transition-shadow"
+                onClick={() => navigate(`/profile/${member.user_id}`)}
+              >
                 <div className="flex items-center gap-3">
                   <Avatar className="w-12 h-12 ring-2 ring-border">
                     {member.is_anonymous ? (
@@ -118,9 +126,11 @@ export default function StudentList() {
                     size="icon"
                     variant="ghost"
                     className="rounded-full"
-                    onClick={() => startChat(member.user_id)}
+                    disabled={!member.chat_enabled}
+                    onClick={(e) => startChat(e, member)}
+                    title={member.chat_enabled ? 'Message' : 'Chats turned off'}
                   >
-                    <MessageCircle className="w-5 h-5" />
+                    {member.chat_enabled ? <MessageCircle className="w-5 h-5" /> : <MessageCircleOff className="w-5 h-5 opacity-40" />}
                   </Button>
                 </div>
               </Card>
@@ -130,4 +140,4 @@ export default function StudentList() {
       </div>
     </div>
   );
-}
+      }
