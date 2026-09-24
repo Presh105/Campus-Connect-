@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, ShoppingBag, Megaphone, User, Briefcase, TrendingUp, Calendar, Bell } from 'lucide-react';
+import { Home, ShoppingBag, Megaphone, User, Briefcase, TrendingUp, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,7 +10,6 @@ const navItems = [
   { icon: Briefcase, label: 'Services', path: '/services' },
   { icon: ShoppingBag, label: 'Market', path: '/marketplace' },
   { icon: TrendingUp, label: 'Predict', path: '/predictions' },
-  { icon: Calendar, label: 'Events', path: '/events' },
   { icon: Megaphone, label: 'News', path: '/announcements' },
   { icon: Bell, label: 'Alerts', path: '/notifications' },
   { icon: User, label: 'Profile', path: '/profile' },
@@ -65,4 +64,4 @@ export function BottomNav() {
       </div>
     </nav>
   );
-}
+      }
