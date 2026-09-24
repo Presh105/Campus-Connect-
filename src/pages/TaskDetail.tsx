@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Clock, Award, User, CheckCircle2, AlertTriangle, Send, ShieldCheck, Loader2, ExternalLink, Eye, Trash2 } from 'lucide-react';
+import { Clock, Award, User, CheckCircle2, AlertTriangle, Send, ShieldCheck, Loader2, ExternalLink, Eye, Trash2, MessageCircle } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -298,16 +298,31 @@ export default function TaskDetail() {
 
           <div className="mt-4 pt-4 border-t">
             <div className="flex items-center gap-3">
-              <Avatar className="w-10 h-10 ring-2 ring-border">
-                <AvatarImage src={task.profiles?.avatar_url || undefined} />
-                <AvatarFallback className="bg-gradient-primary text-primary-foreground">
-                  {task.profiles?.full_name?.charAt(0) || '?'}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <p className="font-semibold">{task.profiles?.full_name || 'Task Poster'}</p>
-                <p className="text-xs text-muted-foreground">Posted this task</p>
-              </div>
+              <button
+                onClick={() => navigate(`/profile/${task.poster_id}`)}
+                className="flex items-center gap-3 flex-1 text-left"
+              >
+                <Avatar className="w-10 h-10 ring-2 ring-border">
+                  <AvatarImage src={task.profiles?.avatar_url || undefined} />
+                  <AvatarFallback className="bg-gradient-primary text-primary-foreground">
+                    {task.profiles?.full_name?.charAt(0) || '?'}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-semibold">{task.profiles?.full_name || 'Task Poster'}</p>
+                  <p className="text-xs text-muted-foreground">Posted this task · View profile</p>
+                </div>
+              </button>
+              {!isOwnTask && (
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="rounded-full shrink-0"
+                  onClick={() => navigate(`/chat/private/${task.poster_id}`)}
+                >
+                  <MessageCircle className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           </div>
         </Card>
@@ -441,4 +456,4 @@ export default function TaskDetail() {
       />
     </div>
   );
-}
+    }
