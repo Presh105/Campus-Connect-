@@ -54,6 +54,11 @@ export default function CreateTask() {
       return;
     }
 
+    if (whatsappLink && !/^https:\/\/(wa\.me|api\.whatsapp\.com)\//.test(whatsappLink.trim())) {
+      toast.error('WhatsApp link must start with https://wa.me/ or https://api.whatsapp.com/');
+      return;
+    }
+
     setLoading(true);
     // All tasks require admin approval
     const approvalStatus = isAdmin ? 'approved' : 'pending';
@@ -210,4 +215,4 @@ export default function CreateTask() {
       </div>
     </div>
   );
-}
+    }
