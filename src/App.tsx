@@ -43,6 +43,7 @@ import Announcements from "./pages/Announcements";
 import { AudioAutoPlay } from "./components/AudioAutoPlay";
 import Contact from "./pages/Contact";
 import Notifications from "./pages/Notifications";
+import ChatList from "./pages/ChatList";
 import AdminAds from "./pages/admin/AdminAds";
 import AdminRewards from "./pages/admin/AdminRewards";
 import Rewards from "./pages/Rewards";
@@ -130,6 +131,7 @@ function AppRoutes() {
       <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
       <Route path="/contact" element={<ProtectedRoute><Contact /></ProtectedRoute>} />
       <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+      <Route path="/chats" element={<ProtectedRoute><ChatList /></ProtectedRoute>} />
       
       <Route path="*" element={<NotFound />} />
     </Routes>
