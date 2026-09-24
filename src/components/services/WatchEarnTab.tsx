@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Play, Trophy, CheckCircle2, Eye, ExternalLink, Pause } from 'lucide-react';
+import { TweetEmbed } from '@/components/TweetEmbed';
 
 interface VideoTask { id: string; title: string; url: string; embed_url: string; platform: string; required_seconds: number; points_reward: number; is_active: boolean; original_url: string | null; allow_rewatch: boolean; view_count: number; completion_count: number; }
 
@@ -104,14 +105,18 @@ export function WatchEarnTab() {
           </div>
           <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black">
             {started ? (
-              <iframe
-                src={active.embed_url}
-                title={active.title}
-                className="absolute inset-0 w-full h-full"
-                allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-                allowFullScreen
-                referrerPolicy="strict-origin-when-cross-origin"
-              />
+              active.platform === 'x' ? (
+                <TweetEmbed url={active.original_url || active.url} />
+              ) : (
+                <iframe
+                  src={active.embed_url}
+                  title={active.title}
+                  className="absolute inset-0 w-full h-full"
+                  allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                  allowFullScreen
+                  referrerPolicy="strict-origin-when-cross-origin"
+                />
+              )
             ) : (
               <button onClick={handlePlay} className="absolute inset-0 w-full h-full flex flex-col items-center justify-center gap-2 bg-black/80 hover:bg-black/70 transition">
                 <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center shadow-elevated">
@@ -188,4 +193,4 @@ export function WatchEarnTab() {
       })}
     </div>
   );
-}
+          }
