@@ -44,6 +44,7 @@ import { AudioAutoPlay } from "./components/AudioAutoPlay";
 import Contact from "./pages/Contact";
 import Notifications from "./pages/Notifications";
 import ChatList from "./pages/ChatList";
+import InviteFriends from "./pages/InviteFriends";
 import AdminAds from "./pages/admin/AdminAds";
 import AdminRewards from "./pages/admin/AdminRewards";
 import Rewards from "./pages/Rewards";
@@ -98,6 +99,7 @@ function AppRoutes() {
       <Route path="/predictions/create" element={<ProtectedRoute><CreatePrediction /></ProtectedRoute>} />
       <Route path="/game" element={<ProtectedRoute><Game /></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route path="/invite" element={<ProtectedRoute><InviteFriends /></ProtectedRoute>} />
       <Route path="/profile/:userId" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       <Route path="/rewards" element={<ProtectedRoute><Rewards /></ProtectedRoute>} />
       <Route path="/withdraw" element={<ProtectedRoute><Withdraw /></ProtectedRoute>} />
