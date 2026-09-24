@@ -1,164 +1,406 @@
-import { Toaster } from "@/components/ui/toaster";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { ThemeProvider } from "@/contexts/ThemeContext";
+import { useState, useEffect } from 'react';
+import { Settings, LogOut, Edit2, Award, MessageSquare, Package, TrendingUp, Gamepad2, Eye, EyeOff, Save, Shield, Calendar, Crown, MessageCircle, MessageCircleOff, ArrowLeft } from 'lucide-react';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { useAuth } from '@/contexts/AuthContext';
+import { useAdmin } from '@/hooks/useAdmin';
+import { useNavigate, useParams } from 'react-router-dom';
+import { DEPARTMENTS, USER_ROLES } from '@/lib/constants';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { ImageUpload } from '@/components/ImageUpload';
+import { format } from 'date-fns';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
-// Pages
-import Auth from "./pages/Auth";
-import Feed from "./pages/Feed";
-import CreatePost from "./pages/CreatePost";
-import PostDetail from "./pages/PostDetail";
-import CampusServices from "./pages/CampusServices";
-import Marketplace from "./pages/Marketplace";
-import CreateListing from "./pages/CreateListing";
-import ListingDetail from "./pages/ListingDetail";
-import StudentList from "./pages/StudentList";
-import Predictions from "./pages/Predictions";
-import CreatePrediction from "./pages/CreatePrediction";
-import Events from "./pages/Events";
-import CreateEvent from "./pages/CreateEvent";
-import Game from "./pages/Game";
-import Profile from "./pages/Profile";
-import NotFound from "./pages/NotFound";
-import Groups from "./pages/Groups";
-import CreateGroup from "./pages/CreateGroup";
-import GroupDetail from "./pages/GroupDetail";
+interface Stats {
+  posts: number;
+  listings: number;
+  predictions: number;
+  gameHighScore: number;
+}
 
-// Admin Pages
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import AdminUsers from "./pages/admin/AdminUsers";
-import AdminMessages from "./pages/admin/AdminMessages";
-import AdminApprovals from "./pages/admin/AdminApprovals";
-import AdminRules from "./pages/admin/AdminRules";
-import AdminStudents from "./pages/admin/AdminStudents";
-import AdminSponsoredPrivileges from "./pages/admin/AdminSponsoredPrivileges";
-import AdminPredictionParticipants from "./pages/admin/AdminPredictionParticipants";
-import AdminUserBans from "./pages/admin/AdminUserBans";
-import AdminAnnouncements from "./pages/admin/AdminAnnouncements";
-import AdminContact from "./pages/admin/AdminContact";
-import AdminBroadcast from "./pages/admin/AdminBroadcast";
-import AdminAudio from "./pages/admin/AdminAudio";
+interface ExtendedProfile {
+  id: string;
+  user_id: string;
+  full_name: string;
+  department: string;
+  level: string;
+  avatar_url: string | null;
+  bio: string | null;
+  points: number;
+  is_anonymous: boolean;
+  created_at: string;
+  updated_at: string;
+  user_role: string | null;
+  display_number: number;
+  reg_number: string | null;
+  faculty: string | null;
+  gender: string | null;
+  system_id: string | null;
+  chat_enabled: boolean;
+  has_corrected_details?: boolean;
+}
 
-import Announcements from "./pages/Announcements";
-import { AudioAutoPlay } from "./components/AudioAutoPlay";
-import Contact from "./pages/Contact";
-import Notifications from "./pages/Notifications";
-import AdminAds from "./pages/admin/AdminAds";
-import AdminRewards from "./pages/admin/AdminRewards";
-import Rewards from "./pages/Rewards";
-import Withdraw from "./pages/Withdraw";
-import AdminWithdrawals from "./pages/admin/AdminWithdrawals";
-import AdminBot from "./pages/admin/AdminBot";
-import AdminAdLibrary from "./pages/admin/AdminAdLibrary";
-import AdminVideoTasks from "./pages/admin/AdminVideoTasks";
-import AdminBotQueue from "./pages/admin/AdminBotQueue";
+export default function Profile() {
+  const { user, profile, signOut, loading, refreshProfile } = useAuth();
+  const { isAdmin, isSuperAdmin } = useAdmin();
+  const navigate = useNavigate();
+  const { userId } = useParams<{ userId: string }>();
+  const isOwnProfile = !userId || userId === user?.id;
 
-const queryClient = new QueryClient();
+  const [stats, setStats] = useState<Stats>({ posts: 0, listings: 0, predictions: 0, gameHighScore: 0 });
+  const [extendedProfile, setExtendedProfile] = useState<ExtendedProfile | null>(null);
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [chatEnabled, setChatEnabled] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ full_name: '', bio: '', avatar_url: '' });
+  const [saving, setSaving] = useState(false);
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
-  
+  useEffect(() => {
+    if (!loading && !user) { navigate('/auth'); }
+  }, [user, loading, navigate]);
+
+  useEffect(() => {
+    if (user) { fetchExtendedProfile(); }
+    if (isOwnProfile) fetchStats(user?.id);
+    else fetchStats(userId);
+  }, [user, userId]);
+
+  useEffect(() => {
+    if (isOwnProfile && profile) {
+      setIsAnonymous(profile.is_anonymous ?? false);
+      setEditForm({ full_name: profile.full_name, bio: profile.bio || '', avatar_url: profile.avatar_url || '' });
+    }
+  }, [profile, isOwnProfile]);
+
+  const fetchExtendedProfile = async () => {
+    const targetId = isOwnProfile ? user?.id : userId;
+    if (!targetId) return;
+    const { data } = await supabase.from('profiles').select('*').eq('user_id', targetId).single();
+    if (data) {
+      setExtendedProfile(data as ExtendedProfile);
+      setChatEnabled((data as ExtendedProfile).chat_enabled ?? true);
+    }
+  };
+
+  const fetchStats = async (targetId?: string) => {
+    if (!targetId) return;
+    const [postsRes, listingsRes, predictionsRes, gameRes] = await Promise.all([
+      supabase.from('posts').select('id', { count: 'exact' }).eq('user_id', targetId),
+      supabase.from('listings').select('id', { count: 'exact' }).eq('seller_id', targetId),
+      supabase.from('predictions').select('id', { count: 'exact' }).eq('user_id', targetId),
+      supabase.from('game_scores').select('score').eq('user_id', targetId).order('score', { ascending: false }).limit(1),
+    ]);
+    setStats({
+      posts: postsRes.count || 0,
+      listings: listingsRes.count || 0,
+      predictions: predictionsRes.count || 0,
+      gameHighScore: gameRes.data?.[0]?.score || 0,
+    });
+  };
+
+  const toggleAnonymous = async (value: boolean) => {
+    if (!user) return;
+    const { error } = await supabase.from('profiles').update({ is_anonymous: value }).eq('user_id', user.id);
+    if (error) { toast.error('Failed to update privacy setting'); }
+    else { setIsAnonymous(value); toast.success(value ? 'Profile is now anonymous' : 'Profile is now public'); refreshProfile(); }
+  };
+
+  const toggleChatEnabled = async (value: boolean) => {
+    if (!user) return;
+    const { error } = await supabase.from('profiles').update({ chat_enabled: value }).eq('user_id', user.id);
+    if (error) { toast.error('Failed to update chat setting'); }
+    else { setChatEnabled(value); toast.success(value ? 'Others can now message you' : 'Others can no longer start a chat with you'); }
+  };
+
+  const saveProfile = async () => {
+    if (!user) return;
+    setSaving(true);
+    const { error } = await supabase.from('profiles').update({
+      full_name: editForm.full_name, bio: editForm.bio, avatar_url: editForm.avatar_url || null,
+    }).eq('user_id', user.id);
+    if (error) { toast.error('Failed to update profile'); }
+    else { toast.success('Profile updated!'); setIsEditing(false); refreshProfile(); fetchExtendedProfile(); }
+    setSaving(false);
+  };
+
+  const startChat = () => {
+    if (!extendedProfile) return;
+    if (!chatEnabled) { toast.message('This member has turned off chats.'); return; }
+    navigate(`/chat/private/${extendedProfile.user_id}`);
+  };
+
+  const handleAvatarUpload = (url: string) => { setEditForm(prev => ({ ...prev, avatar_url: url })); };
+  const getDepartmentLabel = (value: string) => DEPARTMENTS.find(d => d.value === value)?.label || value;
+  const getRoleLabel = (value: string | null) => { if (!value) return null; return USER_ROLES.find(r => r.value === value)?.label || value; };
+  const handleSignOut = async () => { await signOut(); navigate('/auth'); };
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
-      </div>
-    );
-  }
-  
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-  
-  return <>{children}</>;
-}
-
-function AppRoutes() {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
-      </div>
+      <AppLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+        </div>
+      </AppLayout>
     );
   }
 
-  return (
-    <Routes>
-      <Route path="/auth" element={user ? <Navigate to="/" replace /> : <Auth />} />
-      <Route path="/" element={<ProtectedRoute><Feed /></ProtectedRoute>} />
-      <Route path="/create-post" element={<ProtectedRoute><CreatePost /></ProtectedRoute>} />
-      <Route path="/post/:postId" element={<ProtectedRoute><PostDetail /></ProtectedRoute>} />
-      <Route path="/services" element={<ProtectedRoute><CampusServices /></ProtectedRoute>} />
-      <Route path="/marketplace" element={<ProtectedRoute><Marketplace /></ProtectedRoute>} />
-      <Route path="/listing/:listingId" element={<ProtectedRoute><ListingDetail /></ProtectedRoute>} />
-      <Route path="/create-listing" element={<ProtectedRoute><CreateListing /></ProtectedRoute>} />
-      <Route path="/students" element={<ProtectedRoute><StudentList /></ProtectedRoute>} />
-      <Route path="/predictions" element={<ProtectedRoute><Predictions /></ProtectedRoute>} />
-      <Route path="/predictions/create" element={<ProtectedRoute><CreatePrediction /></ProtectedRoute>} />
-      <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
-      <Route path="/events/create" element={<ProtectedRoute><CreateEvent /></ProtectedRoute>} />
-      <Route path="/game" element={<ProtectedRoute><Game /></ProtectedRoute>} />
-      <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-      <Route path="/rewards" element={<ProtectedRoute><Rewards /></ProtectedRoute>} />
-      <Route path="/withdraw" element={<ProtectedRoute><Withdraw /></ProtectedRoute>} />
-      
-      {/* Groups */}
-      <Route path="/groups" element={<ProtectedRoute><Groups /></ProtectedRoute>} />
-      <Route path="/groups/create" element={<ProtectedRoute><CreateGroup /></ProtectedRoute>} />
-      <Route path="/groups/:groupId" element={<ProtectedRoute><GroupDetail /></ProtectedRoute>} />
-      
-      {/* Admin Routes */}
-      <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-      <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
-      <Route path="/admin/messages" element={<ProtectedRoute><AdminMessages /></ProtectedRoute>} />
-      <Route path="/admin/approvals" element={<ProtectedRoute><AdminApprovals /></ProtectedRoute>} />
-      <Route path="/admin/rules" element={<ProtectedRoute><AdminRules /></ProtectedRoute>} />
-      <Route path="/admin/students" element={<ProtectedRoute><AdminStudents /></ProtectedRoute>} />
-      <Route path="/admin/sponsored" element={<ProtectedRoute><AdminSponsoredPrivileges /></ProtectedRoute>} />
-      <Route path="/admin/predictions" element={<ProtectedRoute><AdminPredictionParticipants /></ProtectedRoute>} />
-      <Route path="/admin/bans" element={<ProtectedRoute><AdminUserBans /></ProtectedRoute>} />
-      <Route path="/admin/announcements" element={<ProtectedRoute><AdminAnnouncements /></ProtectedRoute>} />
-      <Route path="/admin/contact" element={<ProtectedRoute><AdminContact /></ProtectedRoute>} />
-      <Route path="/admin/broadcast" element={<ProtectedRoute><AdminBroadcast /></ProtectedRoute>} />
-      <Route path="/admin/audio" element={<ProtectedRoute><AdminAudio /></ProtectedRoute>} />
-      <Route path="/admin/ads" element={<ProtectedRoute><AdminAds /></ProtectedRoute>} />
-      <Route path="/admin/rewards" element={<ProtectedRoute><AdminRewards /></ProtectedRoute>} />
-      <Route path="/admin/withdrawals" element={<ProtectedRoute><AdminWithdrawals /></ProtectedRoute>} />
-      <Route path="/admin/bot" element={<ProtectedRoute><AdminBot /></ProtectedRoute>} />
-      <Route path="/admin/ad-library" element={<ProtectedRoute><AdminAdLibrary /></ProtectedRoute>} />
-      <Route path="/admin/video-tasks" element={<ProtectedRoute><AdminVideoTasks /></ProtectedRoute>} />
-      <Route path="/admin/bot-queue" element={<ProtectedRoute><AdminBotQueue /></ProtectedRoute>} />
-      
-      {/* Public pages */}
-      <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
-      <Route path="/contact" element={<ProtectedRoute><Contact /></ProtectedRoute>} />
-      <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
-      
-      <Route path="*" element={<NotFound />} />
-    </Routes>
-  );
-}
+  if (!extendedProfile || (isOwnProfile && !profile)) return null;
 
-function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AuthProvider>
-          <TooltipProvider>
-            <Toaster />
-            <BrowserRouter>
-              <AudioAutoPlay />
-              <AppRoutes />
-            </BrowserRouter>
-          </TooltipProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
-  );
-}
+  const roleLabel = getRoleLabel(extendedProfile.user_role);
+  const displayName = extendedProfile.is_anonymous && !isOwnProfile
+    ? 'Anonymous Member'
+    : `${extendedProfile.full_name}${extendedProfile.display_number > 1 ? `#${extendedProfile.display_number}` : ''}`;
 
-export default App;
+  return (
+    <AppLayout>
+      <PageHeader
+        title={isOwnProfile ? 'Profile' : displayName}
+        showBack={!isOwnProfile}
+        action={
+          isOwnProfile ? (
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <Button variant="ghost" size="icon" className="rounded-full" onClick={() => navigate('/students')}>
+                <Settings className="w-5 h-5" />
+              </Button>
+            </div>
+          ) : (
+            <Button
+              size="icon"
+              variant={chatEnabled ? 'default' : 'ghost'}
+              className="rounded-full"
+              onClick={startChat}
+              disabled={!chatEnabled}
+              title={chatEnabled ? 'Start chat' : 'This member has chats turned off'}
+            >
+              {chatEnabled ? <MessageCircle className="w-5 h-5" /> : <MessageCircleOff className="w-5 h-5" />}
+            </Button>
+          )
+        }
+      />
+
+      <div className="px-4 py-4 space-y-4">
+        <Card className={`p-6 shadow-soft text-center relative overflow-hidden ${isSuperAdmin && isOwnProfile ? 'ring-2 ring-warning' : ''}`}>
+          <div className={`absolute inset-0 ${isSuperAdmin && isOwnProfile ? 'bg-gradient-to-br from-warning/20 to-primary/10' : 'bg-gradient-hero opacity-5'}`} />
+          <div className="relative">
+            {isSuperAdmin && isOwnProfile && (
+              <div className="absolute -top-2 -right-2">
+                <Badge className="bg-warning text-warning-foreground"><Crown className="w-3 h-3 mr-1" />Owner</Badge>
+              </div>
+            )}
+
+            <Avatar className={`w-24 h-24 mx-auto ring-4 ${isSuperAdmin && isOwnProfile ? 'ring-warning' : 'ring-background'} shadow-elevated`}>
+              {!(extendedProfile.is_anonymous && !isOwnProfile) && <AvatarImage src={extendedProfile.avatar_url || undefined} />}
+              <AvatarFallback className={`text-2xl ${isSuperAdmin && isOwnProfile ? 'bg-gradient-to-br from-warning to-primary' : 'bg-gradient-primary'} text-primary-foreground`}>
+                {displayName.charAt(0)}
+              </AvatarFallback>
+            </Avatar>
+
+            <h2 className="font-bold text-xl mt-4 text-foreground">{displayName}</h2>
+
+            {roleLabel && extendedProfile.user_role !== 'student' && (
+              <Badge className="mt-2 bg-primary/10 text-primary border-primary/20">{roleLabel}</Badge>
+            )}
+
+            <div className="flex items-center justify-center gap-2 mt-2">
+              <Badge variant="secondary">{getDepartmentLabel(extendedProfile.department)}</Badge>
+            </div>
+
+            {extendedProfile.bio && (
+              <p className="text-muted-foreground mt-3 text-sm">{extendedProfile.bio}</p>
+            )}
+
+            {/* System ID visible to the user themselves and admin */}
+            {isOwnProfile && extendedProfile.system_id && (
+              <div className="mt-3">
+                <button
+                  onClick={() => { navigator.clipboard.writeText(extendedProfile.system_id!); toast.success('System ID copied!'); }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-muted rounded-full text-xs text-foreground hover:bg-muted/80 transition-colors"
+                >
+                  <Shield className="w-3 h-3" />
+                  <span className="font-mono">{extendedProfile.system_id}</span>
+                  <span className="text-[10px] opacity-60">Your ID</span>
+                </button>
+              </div>
+            )}
+
+            <div className="flex items-center justify-center gap-1 mt-3 text-xs text-muted-foreground">
+              <Calendar className="w-3 h-3" />
+              <span>Joined {format(new Date(extendedProfile.created_at), 'MMMM yyyy')}</span>
+            </div>
+
+            {isOwnProfile && (
+              <button
+                onClick={() => navigate('/withdraw')}
+                className="inline-flex items-center justify-center gap-1 mt-4 px-4 py-2 rounded-full bg-warning/10 hover:bg-warning/20 transition-colors"
+                title={extendedProfile.points >= 1000 ? 'Click to withdraw' : `Need ₦${1000 - extendedProfile.points} more to withdraw`}
+              >
+                <Award className="w-5 h-5 text-warning" />
+                <span className="font-bold">₦{extendedProfile.points}</span>
+                {extendedProfile.points >= 1000 && <span className="text-[10px] ml-1 px-2 py-0.5 rounded-full bg-warning text-warning-foreground font-semibold">Cash out</span>}
+              </button>
+            )}
+
+            {isOwnProfile && (
+              <Dialog open={isEditing} onOpenChange={setIsEditing}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="mt-4 rounded-full">
+                    <Edit2 className="w-4 h-4 mr-2" />Edit Profile
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>Edit Profile</DialogTitle></DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Profile Picture</Label>
+                      {user && <ImageUpload bucket="avatars" userId={user.id} onUpload={handleAvatarUpload} preview />}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="full_name">Full Name</Label>
+                      <Input id="full_name" value={editForm.full_name} onChange={(e) => setEditForm(prev => ({ ...prev, full_name: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="bio">Bio</Label>
+                      <Textarea id="bio" value={editForm.bio} onChange={(e) => setEditForm(prev => ({ ...prev, bio: e.target.value }))} placeholder="Tell us about yourself..." />
+                    </div>
+                    <Button onClick={saveProfile} disabled={saving} className="w-full">
+                      <Save className="w-4 h-4 mr-2" />{saving ? 'Saving...' : 'Save Changes'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            )}
+
+            {!isOwnProfile && (
+              <Button
+                onClick={startChat}
+                disabled={!chatEnabled}
+                className="mt-4 rounded-full"
+                variant={chatEnabled ? 'default' : 'outline'}
+              >
+                {chatEnabled ? <MessageCircle className="w-4 h-4 mr-2" /> : <MessageCircleOff className="w-4 h-4 mr-2" />}
+                {chatEnabled ? 'Message' : 'Chats turned off'}
+              </Button>
+            )}
+          </div>
+        </Card>
+
+        {/* Privacy Settings — own profile only */}
+        {isOwnProfile && (
+          <>
+            <Card className="p-4 shadow-soft">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {isAnonymous ? <EyeOff className="w-5 h-5 text-muted-foreground" /> : <Eye className="w-5 h-5 text-primary" />}
+                  <div>
+                    <p className="font-bold text-foreground">Anonymous Profile</p>
+                    <p className="text-xs text-muted-foreground">
+                      {isAnonymous ? 'Your identity is hidden from other members' : 'Other members can see your profile'}
+                    </p>
+                  </div>
+                </div>
+                <Switch checked={isAnonymous} onCheckedChange={toggleAnonymous} />
+              </div>
+            </Card>
+
+            <Card className="p-4 shadow-soft">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {chatEnabled ? <MessageCircle className="w-5 h-5 text-primary" /> : <MessageCircleOff className="w-5 h-5 text-muted-foreground" />}
+                  <div>
+                    <p className="font-bold text-foreground">Allow Chats</p>
+                    <p className="text-xs text-muted-foreground">
+                      {chatEnabled ? 'Other members can start a chat with you from your profile' : 'Other members cannot start a new chat with you'}
+                    </p>
+                  </div>
+                </div>
+                <Switch checked={chatEnabled} onCheckedChange={toggleChatEnabled} />
+              </div>
+            </Card>
+          </>
+        )}
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 gap-3">
+          <Card className="p-4 shadow-soft">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <MessageSquare className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{stats.posts}</p>
+                <p className="text-xs text-muted-foreground">Posts</p>
+              </div>
+            </div>
+          </Card>
+          <Card className="p-4 shadow-soft">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-success/10 flex items-center justify-center">
+                <Package className="w-5 h-5 text-success" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{stats.listings}</p>
+                <p className="text-xs text-muted-foreground">Listings</p>
+              </div>
+            </div>
+          </Card>
+          <Card className="p-4 shadow-soft">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-info/10 flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-info" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{stats.predictions}</p>
+                <p className="text-xs text-muted-foreground">Predictions</p>
+              </div>
+            </div>
+          </Card>
+          <Card className="p-4 shadow-soft">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-warning/10 flex items-center justify-center">
+                <Gamepad2 className="w-5 h-5 text-warning" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{stats.gameHighScore}</p>
+                <p className="text-xs text-muted-foreground">Game Best</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Admin Dashboard Link — own profile only */}
+        {isOwnProfile && isAdmin && (
+          <Card
+            className={`p-4 shadow-soft cursor-pointer hover:shadow-elevated transition-shadow ${isSuperAdmin ? 'bg-gradient-to-r from-warning/20 to-primary/20' : 'bg-gradient-primary'} text-foreground`}
+            onClick={() => navigate('/admin')}
+          >
+            <div className="flex items-center gap-3">
+              <Shield className="w-6 h-6" />
+              <div>
+                <p className="font-bold">Admin Dashboard</p>
+                <p className="text-sm opacity-90">Manage users, content & more</p>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Sign Out — own profile only */}
+        {isOwnProfile && (
+          <Button variant="outline" className="w-full rounded-xl" onClick={handleSignOut}>
+            <LogOut className="w-4 h-4 mr-2" />Sign Out
+          </Button>
+        )}
+      </div>
+    </AppLayout>
+  );
+  }
