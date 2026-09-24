@@ -99,7 +99,7 @@ export default function ListingDetail() {
   };
 
   const proceedToChat = () => {
-    if (listing) navigate(`/chat/${listing.seller_id}`);
+    if (listing) navigate(`/chat/private/${listing.seller_id}`);
     setShowBuyWarning(false);
   };
 
@@ -171,16 +171,31 @@ export default function ListingDetail() {
 
           <div className="mt-4 pt-4 border-t">
             <div className="flex items-center gap-3">
-              <Avatar className="w-10 h-10 ring-2 ring-border">
-                <AvatarImage src={listing.profiles?.avatar_url || undefined} />
-                <AvatarFallback className="bg-gradient-primary text-primary-foreground">
-                  {listing.profiles?.full_name?.charAt(0) || '?'}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <p className="font-semibold">{listing.profiles?.full_name || 'Seller'}</p>
-                <p className="text-xs text-muted-foreground">Seller</p>
-              </div>
+              <button
+                onClick={() => navigate(`/profile/${listing.seller_id}`)}
+                className="flex items-center gap-3 flex-1 text-left"
+              >
+                <Avatar className="w-10 h-10 ring-2 ring-border">
+                  <AvatarImage src={listing.profiles?.avatar_url || undefined} />
+                  <AvatarFallback className="bg-gradient-primary text-primary-foreground">
+                    {listing.profiles?.full_name?.charAt(0) || '?'}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-semibold">{listing.profiles?.full_name || 'Seller'}</p>
+                  <p className="text-xs text-muted-foreground">Seller · View profile</p>
+                </div>
+              </button>
+              {!isOwnListing && (
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="rounded-full shrink-0"
+                  onClick={() => navigate(`/chat/private/${listing.seller_id}`)}
+                >
+                  <MessageCircle className="w-4 h-4" />
+                </Button>
+              )}
             </div>
           </div>
 
@@ -245,4 +260,4 @@ export default function ListingDetail() {
       </Dialog>
     </div>
   );
-}
+        }
